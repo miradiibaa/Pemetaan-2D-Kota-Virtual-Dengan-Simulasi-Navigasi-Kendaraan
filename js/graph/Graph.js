@@ -35,14 +35,7 @@ export class Graph {
   }
 
   // ── DAPATKAN PASANGAN {NODE, EDGE} TETANGGA ────────────────────────
-  // Versi lebih lengkap dari getNeighbors — mengembalikan node tetangga
-  // sekaligus edge yang menghubungkannya.
-  //
-  // Contoh hasil untuk node A yang terhubung ke B dan C:
-  //   [ { node: B, edge: Edge(A-B) }, { node: C, edge: Edge(A-C) } ]
-  //
-  // Dipakai langsung oleh dijkstraGenerator() untuk menelusuri tetangga.
-  // Kompleksitas: O(degree(node)) — degree = jumlah tetangga node
+ 
   getNeighborNodes(node) {
     return this.getNeighbors(node.id).map(edge => ({
       node: edge.getOtherNode(node),
@@ -51,18 +44,59 @@ export class Graph {
   }
 
   // ── CARI NODE BERDASARKAN ID ────────────────────────────────────────
-  // Dipakai UI saat user mengklik persimpangan di canvas.
-  // Kompleksitas: O(V)
+ 
   getNodeById(id) {
     return this.nodes.find(n => n.id === id) ?? null;
   }
 
   // ── CARI EDGE ANTARA DUA NODE ───────────────────────────────────────
-  // Mengembalikan edge yang langsung menghubungkan nodeA ke nodeB.
-  // Dipakai untuk keperluan debug atau validasi.
-  // Kompleksitas: O(degree(nodeA))
+  
   getEdgeBetween(nodeA, nodeB) {
     return this.getNeighbors(nodeA.id)
       .find(e => e.getOtherNode(nodeA).id === nodeB.id) ?? null;
+  }
+
+  isConnected() {
+    if (this.nodes.length === 0) return true;
+
+    const visited = new Set();
+    const queue   = [this.nodes[0]];
+    visited.add(this.nodes[0].id);
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      for (const { node } of this.getNeighborNodes(current)) {
+        if (!visited.has(node.id)) {
+          visited.add(node.id);
+          queue.push(node);
+        }
+      }
+    }
+
+    // Graf connected jika semua V node berhasil di-visit
+    return visited.size === this.nodes.length;
+  }
+
+  // ── CARI NODE YANG TERISOLASI ───────────────────────────────────────
+
+  findDisconnectedNodes() {
+    if (this.nodes.length === 0) return [];
+
+    const visited = new Set();
+    const queue   = [this.nodes[0]];
+    visited.add(this.nodes[0].id);
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      for (const { node } of this.getNeighborNodes(current)) {
+        if (!visited.has(node.id)) {
+          visited.add(node.id);
+          queue.push(node);
+        }
+      }
+    }
+
+    // Node yang tidak ter-visit = terisolasi
+    return this.nodes.filter(n => !visited.has(n.id));
   }
 }
