@@ -99,4 +99,30 @@ export class Graph {
     // Node yang tidak ter-visit = terisolasi
     return this.nodes.filter(n => !visited.has(n.id));
   }
+
+  reset() {
+    this.nodes.forEach(n => n.reset()); // reset state & distance tiap node
+    this.edges.forEach(e => e.reset()); // reset state tiap edge
+  }
+
+  // ── HAPUS SEMUA DATA ────────────────────────────────────────────────
+  // Mengosongkan seluruh graf (dipanggil saat generate peta baru).
+  clear() {
+    this.nodes      = [];
+    this.edges      = [];
+    this._adjacency = new Map();
+  }
+
+  // ── INFO RINGKAS UNTUK PANEL UI ────────────────────────────────────
+  
+  getStats() {
+    const avgDegree = this.nodes.length > 0
+      ? (this.edges.length * 2 / this.nodes.length).toFixed(1)
+      : 0;
+    return {
+      nodeCount: this.nodes.length,  // total persimpangan
+      edgeCount: this.edges.length,  // total jalan
+      avgDegree,                     // rata-rata tetangga per persimpangan
+    };
+  }
 }
