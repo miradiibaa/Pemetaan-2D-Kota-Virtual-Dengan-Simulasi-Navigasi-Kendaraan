@@ -66,4 +66,31 @@ export class PriorityQueue {
         index = smallest; // turun ke posisi anak
         }
     }
-} 
+
+        // cek node
+    contains(nodeId) {
+        return this.heap.some(item => item.node.id === nodeId);
+    }
+
+        // Lihat minimum tanpa menghapus
+    peek() {
+        return this.heap.length > 0 ? this.heap[0] : null;
+    }
+
+    isEmpty() {
+        return this.heap.length === 0;
+    }
+
+    size() {
+        return this.heap.length;
+    }
+
+    clear() {
+        this.heap = [];
+    }
+
+        // Tukar dua elemen (dipakai heapify).
+    _swap(i, j) {
+        [this.heap[i], this.heap[j]] = [this.heap[j], this.heap[i]];
+    }
+}
