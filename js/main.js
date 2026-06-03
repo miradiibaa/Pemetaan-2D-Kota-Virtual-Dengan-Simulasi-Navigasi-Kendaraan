@@ -350,3 +350,55 @@ function _stopDijkstra() {
   state.dijkstraGen = null;
   state.running     = false;
 }
+
+function _startPathReveal(path) {
+  path.edges.forEach(edge => { edge.state = 'normal'; });
+  path.nodes.forEach(node => {
+    if (node.id !== state.startNode.id && node.id !== state.endNode.id) {
+      node.state = 'visited';
+    }
+  });
+
+  state.revealingPath = true;
+  state.pathReveal = {
+    active: true,
+    progress: 0,
+    segments: path.edges.map((edge, index) => ({
+      edge,
+      fromNode: path.nodes[index],
+    })),
+  };
+  ui.addStepLog('Menggambar jalur terpendek...', 'init');
+  ui.setButtonStates({ generated: true, running: true, done: true });
+}
+
+function _updatePathReveal() {
+  if (!state.revealingPath || !state.pathReveal.active) return;
+
+  state.pathReveal.progress = Math.min(state.pathReveal.progress + 0.018, 1);
+  if (state.pathReveal.progress < 1) return;
+
+  const path = state.lastPath;
+  _finishPathState(path);
+  state.revealingPath = false;
+  state.pathReveal.active = false;
+  ui.addStepLog('Jalur terpendek selesai digambar.', 'done');
+
+  setTimeout(() => {
+    if (!state.lastPath?.found || state.animatingRoute) return;
+    _startRouteAnimation();
+  }, 250);
+}
+
+function _finishPathState(path) {
+  if (!path?.found) return;
+  path.edges.forEach(edge => { edge.state = 'path'; });
+  path.nodes.forEach(node => {
+    if (node.id !== state.startNode.id && node.id !== state.endNode.id) node.state = 'path';
+  });
+}
+
+function _resetPathReveal() {
+  state.revealingPath = false;
+  state.pathReveal = { active: false, progress: 0, segments: [] };
+}
