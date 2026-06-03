@@ -1283,3 +1283,77 @@
         this.graph._adjacency = oldAdj;
         return false;
     }
+
+    _midPointControl(edge) {
+        return {
+        x: (edge.nodeA.x + edge.nodeB.x) / 2,
+        y: (edge.nodeA.y + edge.nodeB.y) / 2,
+        };
+    }
+
+    _isNearRoad(x, y, minDist) {
+        for (const edge of this.graph.edges) {
+            for (let t = 0; t <= 1; t += 0.05) {
+                const pt = edge.getPointAtT(t);
+                const dx = pt.x - x, dy = pt.y - y;
+                if (Math.sqrt(dx*dx + dy*dy) < minDist) return true;
+            }
+        }
+        return false;
+    }
+
+    _distanceToNearestRoad(x, y) {
+        let nearest = Infinity;
+        for (const edge of this.graph.edges) {
+            for (let t = 0; t <= 1; t += 0.04) {
+                const pt = edge.getPointAtT(t);
+                const dx = pt.x - x, dy = pt.y - y;
+                nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy));
+            }
+        }
+        return nearest;
+    }
+
+    _isNearBuilding(x, y, minDist) {
+        for (const b of this.decorations.buildings) {
+            const dx = b.x - x, dy = b.y - y;
+            if (Math.sqrt(dx*dx + dy*dy) < minDist + (b.radius ?? b.w/2)) return true;
+        }
+        return false;
+    }
+
+    _canPlaceAsset(x, y, radius, roadGap = 8, assetGap = 5) {
+        const nx = (x - this.ovalCX) / this.ovalRX;
+        const ny = (y - this.ovalCY) / this.ovalRY;
+        if (nx * nx + ny * ny > 0.88) return false;
+
+        if (this._isNearRoad(x, y, radius + this.theme.roadWidth / 2 + roadGap)) return false;
+        if (this._isNearNode(x, y, radius + this.theme.nodeRadius + 8)) return false;
+
+        for (const asset of this._occupiedAssets ?? []) {
+            const dx = asset.x - x;
+            const dy = asset.y - y;
+            if (Math.sqrt(dx * dx + dy * dy) < asset.r + radius + assetGap) return false;
+        }
+        return true;
+    }
+
+    _reserveAsset(x, y, radius) {
+        this._occupiedAssets.push({ x, y, r: radius });
+    }
+
+    _isNearNode(x, y, minDist) {
+        return this.graph.nodes.some(node => {
+        const dx = node.x - x;
+        const dy = node.y - y;
+        return Math.sqrt(dx * dx + dy * dy) < minDist;
+        });
+    }
+
+    _distanceToNearestNode(x, y) {
+        return this.graph.nodes.reduce((nearest, node) => {
+        const dx = node.x - x;
+        const dy = node.y - y;
+        return Math.min(nearest, Math.sqrt(dx * dx + dy * dy));
+        }, Infinity);
+    }
