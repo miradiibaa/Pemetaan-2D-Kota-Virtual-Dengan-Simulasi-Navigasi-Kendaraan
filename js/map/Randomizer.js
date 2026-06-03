@@ -262,4 +262,113 @@ _rebuildRoadGrid(graph, rows) {
       }
     }
   }
+
+
+ _fixConnectivity(graph) {
+    const { minNeighbors } = CONFIG.map;
+    const nodes = graph.nodes;
+    let edgeId  = graph.edges.length > 0
+      ? Math.max(...graph.edges.map(e => e.id)) + 1
+      : 0;
+
+    const edgeSudahAda = new Set(
+      graph.edges.map(e => [e.nodeA.id, e.nodeB.id].sort((a,b)=>a-b).join('-'))
+    );
+
+    let iterasi = 0;
+    while (!graph.isConnected() && iterasi < 30) {
+      iterasi++;
+      const terisolasi = graph.findDisconnectedNodes();
+
+      const komponen = new Set();
+      const antrian  = [nodes[0]];
+      komponen.add(nodes[0].id);
+      while (antrian.length > 0) {
+        const cur = antrian.shift();
+        for (const { node } of graph.getNeighborNodes(cur)) {
+          if (!komponen.has(node.id)) {
+            komponen.add(node.id);
+            antrian.push(node);
+          }
+        }
+      }
+
+      for (const iso of terisolasi) {
+        let terdekat = null, minD = Infinity;
+        for (const n of nodes) {
+          if (!komponen.has(n.id)) continue;
+          const d = iso.distanceTo(n);
+          if (d < minD) { minD = d; terdekat = n; }
+        }
+        if (!terdekat) continue;
+
+        const key = [iso.id, terdekat.id].sort((a,b)=>a-b).join('-');
+        if (edgeSudahAda.has(key)) continue;
+
+        if (this._edgeCrossesExisting(iso, terdekat, graph)) continue;
+
+        edgeSudahAda.add(key);
+        const edge = new Edge(edgeId++, iso, terdekat);
+        graph.tambahEdge(edge);
+        komponen.add(iso.id);
+      }
+    }
+
+    // Tambah koneksi untuk node yang masih berada di bawah degree minimum.
+    const nodeDegree = () => {
+      const deg = new Map();
+      for (const n of nodes) deg.set(n.id, 0);
+      for (const e of graph.edges) {
+        deg.set(e.nodeA.id, deg.get(e.nodeA.id) + 1);
+        deg.set(e.nodeB.id, deg.get(e.nodeB.id) + 1);
+      }
+      return deg;
+    };
+
+    let deg = nodeDegree();
+    const targetMin = minNeighbors || 2;
+    let lowDegree = nodes.filter(n => deg.get(n.id) < targetMin);
+
+    for (const node of lowDegree) {
+      const kandidat = nodes
+        .filter(n => n.id !== node.id)
+        .map(n => ({ node: n, d: node.distanceTo(n) }))
+        .sort((a, b) => a.d - b.d);
+
+      for (const { node: tetangga } of kandidat) {
+        const key = [node.id, tetangga.id].sort((a,b)=>a-b).join('-');
+        if (edgeSudahAda.has(key)) continue;
+        if (this._edgeCrossesExisting(node, tetangga, graph)) continue;
+
+        edgeSudahAda.add(key);
+        const edge = new Edge(edgeId++, node, tetangga);
+        graph.tambahEdge(edge);
+        break;
+      }
+    }
+  }
+
+  // Validasi koneksi start/end memakai BFS.
+
+  validasiKoneksi(graph, startNode, endNode) {
+    if (startNode.id === endNode.id) return true;
+
+    const visited = new Set();
+    const antrian = [startNode];
+    visited.add(startNode.id);
+
+    while (antrian.length > 0) {
+      const current = antrian.shift();
+      if (current.id === endNode.id) return true;
+
+      for (const { node } of graph.getNeighborNodes(current)) {
+        if (!visited.has(node.id)) {
+          visited.add(node.id);
+          antrian.push(node);
+        }
+      }
+    }
+
+    return false;
+  }
 }
