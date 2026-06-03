@@ -132,4 +132,134 @@ _rebuildRoadGrid(graph, rows) {
       }
     }
   }
+
+
+ _hapusEdgeSilang(graph) {
+    const edgesToKeep = [];
+
+    for (const edge of graph.edges) {
+      let problematic = false;
+
+      for (const other of graph.edges) {
+        if (other === edge) continue;
+        // Edge yang bertemu di persimpangan memang boleh bersentuhan.
+        if (other.nodeA.id === edge.nodeA.id ||
+            other.nodeB.id === edge.nodeA.id ||
+            other.nodeA.id === edge.nodeB.id ||
+            other.nodeB.id === edge.nodeB.id) continue;
+
+        if (this._segmentsIntersectStrict(
+          edge.nodeA.x, edge.nodeA.y, edge.nodeB.x, edge.nodeB.y,
+          other.nodeA.x, other.nodeA.y, other.nodeB.x, other.nodeB.y
+        )) {
+          problematic = true;
+          break;
+        }
+      }
+
+      if (!problematic) edgesToKeep.push(edge);
+    }
+
+    graph.edges = edgesToKeep;
+
+    // Setelah edges diganti, adjacency list harus dibangun ulang.
+    graph._adjacency = new Map();
+    for (const node of graph.nodes) {
+      graph._adjacency.set(node.id, []);
+    }
+    for (const edge of graph.edges) {
+      graph._adjacency.get(edge.nodeA.id).push(edge);
+      graph._adjacency.get(edge.nodeB.id).push(edge);
+    }
+  }
+
+  _segmentsIntersectStrict(ax, ay, bx, by, cx, cy, dx, dy) {
+    const eps = 0.30;
+
+    const d1x = bx - ax, d1y = by - ay;
+    const d2x = dx - cx, d2y = dy - cy;
+
+    const cross = d1x * d2y - d1y * d2x;
+    if (Math.abs(cross) < 1e-10) return false;
+
+    const t = ((cx - ax) * d2y - (cy - ay) * d2x) / cross;
+    const u = ((cx - ax) * d1y - (cy - ay) * d1x) / cross;
+
+    return t > eps && t < 1 - eps && u > eps && u < 1 - eps;
+  }
+
+  /**
+   * Menambah edge ke tetangga terdekat tanpa membuat jalan bersilangan.
+   * Dipakai setelah edge lama dihapus atau layout node berubah.
+   */
+  _tambahEdgeBersih(graph, maxConnectDist, maxNeighbors) {
+    const { minNeighbors } = CONFIG.map;
+    const nodes = graph.nodes;
+    let edgeId  = graph.edges.length > 0
+      ? Math.max(...graph.edges.map(e => e.id)) + 1
+      : 0;
+
+    const edgeSudahAda = new Set(
+      graph.edges.map(e => [e.nodeA.id, e.nodeB.id].sort((a,b)=>a-b).join('-'))
+    );
+
+    // Isi koneksi sampai mendekati maxNeighbors.
+    for (const node of nodes) {
+      let jumlah = graph.getNeighbors(node.id).length;
+      if (jumlah >= maxNeighbors) continue;
+
+      const kandidat = nodes
+        .filter(n => n.id !== node.id)
+        .map(n => ({ node: n, jarak: node.distanceTo(n) }))
+        .filter(c => c.jarak <= maxConnectDist)
+        .sort((a, b) => a.jarak - b.jarak);
+
+      for (const { node: tetangga } of kandidat) {
+        if (jumlah >= maxNeighbors) break;
+
+        const key = [node.id, tetangga.id].sort((a,b)=>a-b).join('-');
+        if (edgeSudahAda.has(key)) continue;
+
+        if (this._edgeCrossesExisting(node, tetangga, graph)) continue;
+
+        edgeSudahAda.add(key);
+        const edge = new Edge(edgeId++, node, tetangga);
+        graph.tambahEdge(edge);
+        jumlah++;
+      }
+    }
+
+    // Pastikan node tidak kekurangan koneksi minimum.
+    const nodeDegree = () => {
+      const deg = new Map();
+      for (const n of nodes) deg.set(n.id, 0);
+      for (const e of graph.edges) {
+        deg.set(e.nodeA.id, deg.get(e.nodeA.id) + 1);
+        deg.set(e.nodeB.id, deg.get(e.nodeB.id) + 1);
+      }
+      return deg;
+    };
+
+    let deg = nodeDegree();
+    const targetMin = minNeighbors || 2;
+    const needMore = nodes.filter(n => deg.get(n.id) < targetMin);
+
+    for (const node of needMore) {
+      const kandidat = nodes
+        .filter(n => n.id !== node.id)
+        .map(n => ({ node: n, d: node.distanceTo(n) }))
+        .sort((a, b) => a.d - b.d);
+
+      for (const { node: tetangga } of kandidat) {
+        const key = [node.id, tetangga.id].sort((a,b)=>a-b).join('-');
+        if (edgeSudahAda.has(key)) continue;
+        if (this._edgeCrossesExisting(node, tetangga, graph)) continue;
+
+        edgeSudahAda.add(key);
+        const edge = new Edge(edgeId++, node, tetangga);
+        graph.tambahEdge(edge);
+        break;
+      }
+    }
+  }
 }
