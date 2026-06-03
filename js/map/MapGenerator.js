@@ -1067,3 +1067,90 @@
             y: Math.sin(item.angle) * ry * item.distance,
         }));
     }
+
+      // Utilitas geometri dan collision detection.
+    _edgeCrossesExisting(a, b) {
+        for (const edge of this.graph.edges) {
+        if (edge.nodeA.id === a.id || edge.nodeB.id === a.id) continue;
+        if (edge.nodeA.id === b.id || edge.nodeB.id === b.id) continue;
+        if (this._segmentsIntersect(
+            a.x, a.y, b.x, b.y,
+            edge.nodeA.x, edge.nodeA.y, edge.nodeB.x, edge.nodeB.y
+        )) return true;
+        }
+        return false;
+    }
+
+    _segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+        const eps  = 0.01;
+        const d1x  = bx-ax, d1y = by-ay;
+        const d2x  = dx-cx, d2y = dy-cy;
+        const cross = d1x*d2y - d1y*d2x;
+        if (Math.abs(cross) < 1e-10) return false;
+        const t = ((cx-ax)*d2y - (cy-ay)*d2x) / cross;
+        const u = ((cx-ax)*d1y - (cy-ay)*d1x) / cross;
+        return t > eps && t < 1-eps && u > eps && u < 1-eps;
+    }
+
+    _hasRoadCollision() {
+        return this._getRoadCollisionPairs().length > 0;
+    }
+
+    _isRoadNetworkClean() {
+        return this.graph.isConnected() &&
+        !this._hasDanglingRoads() &&
+        this._connectorAccessCount() >= 3 &&
+        !this._hasRoadCollision() &&
+        !this._hasRoadOverlap();
+    }
+
+    _hasDanglingRoads() {
+        return this.graph.nodes.some(node => this.graph.getNeighbors(node.id).length < 2);
+    }
+
+    _connectorAccessCount() {
+        return this.graph.edges.filter(edge => edge.roadKind === 'connector').length;
+    }
+
+    _hasRoadOverlap() {
+        const samples = new Map(this.graph.edges.map(edge => [edge.id, this._sampleEdge(edge)]));
+        const minClearance = this.theme.roadWidth * 0.86;
+
+        for (let i = 0; i < this.graph.edges.length; i++) {
+            for (let j = i + 1; j < this.graph.edges.length; j++) {
+                const a = this.graph.edges[i];
+                const b = this.graph.edges[j];
+                if (this._edgesShareNode(a, b)) continue;
+
+                const distance = this._polylineDistance(samples.get(a.id), samples.get(b.id));
+                if (distance < minClearance) return true;
+            }
+        }
+        return false;
+    }
+
+    _layoutSignature() {
+        const edgeSig = this.graph.edges
+        .map(edge => `${edge.roadKind}:${Math.min(edge.nodeA.id, edge.nodeB.id)}-${Math.max(edge.nodeA.id, edge.nodeB.id)}`)
+        .sort()
+        .join('|');
+        return `${this.roadProfile?.id ?? this.centerKind}:${this.uTurnSide}:${edgeSig}`;
+    }
+
+    _getRoadCollisionPairs() {
+        const pairs = [];
+        const samples = new Map(this.graph.edges.map(edge => [edge.id, this._sampleEdge(edge)]));
+
+        for (let i = 0; i < this.graph.edges.length; i++) {
+            for (let j = i + 1; j < this.graph.edges.length; j++) {
+                const a = this.graph.edges[i];
+                const b = this.graph.edges[j];
+                if (this._edgesShareNode(a, b)) continue;
+
+                if (this._polylinesIntersect(samples.get(a.id), samples.get(b.id))) {
+                pairs.push([a, b]);
+                }
+            }
+        }
+        return pairs;
+    }
