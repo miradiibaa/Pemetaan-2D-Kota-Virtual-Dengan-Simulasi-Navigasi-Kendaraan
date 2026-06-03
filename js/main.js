@@ -163,3 +163,112 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 requestAnimationFrame(gameLoop);
+
+function handleGenerate() {
+  _stopDijkstra();
+  animation.reset();
+
+  state.themeIndex = 0;
+  state.theme      = THEMES[THEME_ORDER[0]];
+
+  const result      = mapGen.generatePeta(state.theme, canvas.width, canvas.height);
+  state.graph       = result.graph;
+  state.decorations = result.decorations;
+  state.oval        = result.oval;
+
+  const { start, end } = randomizer.randomStartEnd(state.graph);
+  state.startNode  = start;
+  state.endNode    = end;
+
+  state.generated  = true;
+  state.running    = false;
+  state.done       = false;
+  state.lastPath   = null;
+  state.animatingRoute = false;
+  state.returningZoom = false;
+  _resetPathReveal();
+  state.visitedCount = 0;
+
+  renderer.resetZoom();
+  centerCanvasScroll();
+
+  const stats = state.graph.getStats();
+  ui.updateStats({ nodeCount: stats.nodeCount, edgeCount: stats.edgeCount });
+  ui.updateThemeBadge(state.theme);
+  ui.clearLog();
+  ui.addStepLog(
+    `Map "${state.theme.name}" diacak — ${stats.nodeCount} node, ${stats.edgeCount} edge`,
+    'init'
+  );
+  ui.setButtonStates({ generated: true, running: false, done: false });
+}
+
+function handleReset() {
+  _stopDijkstra();
+  animation.reset();
+  renderer.resetZoom();
+  state.graph.reset();
+  if (state.startNode) state.startNode.state = 'start';
+  if (state.endNode)   state.endNode.state   = 'end';
+  state.running      = false;
+  state.done         = false;
+  state.lastPath     = null;
+  state.animatingRoute = false;
+  state.returningZoom = false;
+  _resetPathReveal();
+  state.visitedCount = 0;
+  ui.clearLog();
+  ui.addStepLog('Rute di-reset. Peta tetap sama.', 'init');
+  ui.setButtonStates({ generated: state.generated, running: false, done: false });
+  ui.updateStats({
+    nodeCount: state.graph.nodes.length,
+    edgeCount: state.graph.edges.length,
+    dist: '—', visited: '—',
+  });
+}
+
+function handleCanvasClick(event) {
+  if (!state.generated || state.running || state.animatingRoute || state.revealingPath) return;
+
+  const rect   = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  const sx = (event.clientX - rect.left) * scaleX;
+  const sy = (event.clientY - rect.top)  * scaleY;
+
+  const { x: mx, y: my } = renderer.screenToWorld(sx, sy);
+
+  let nearest = null, minDist = Infinity;
+  const hitRadius = (state.theme?.nodeRadius ?? 10) * 3.0;
+
+  for (const node of state.graph.nodes) {
+    const dx = node.x - mx, dy = node.y - my;
+    const d  = Math.sqrt(dx*dx + dy*dy);
+    if (d < minDist && d < hitRadius) { minDist = d; nearest = node; }
+  }
+  if (!nearest) return;
+
+  if (event.shiftKey) {
+    if (state.startNode && nearest.id === state.startNode.id) return;
+    if (state.endNode) state.endNode.state = 'unvisited';
+    state.endNode       = nearest;
+    state.endNode.state = 'end';
+    ui.addStepLog(`End → ${nearest.label}`, 'init');
+  } else {
+    if (state.endNode && nearest.id === state.endNode.id) return;
+    if (state.startNode) state.startNode.state = 'unvisited';
+    state.startNode       = nearest;
+    state.startNode.state = 'start';
+    ui.addStepLog(`Start → ${nearest.label}`, 'init');
+  }
+
+  state.graph.reset();
+  if (state.startNode) state.startNode.state = 'start';
+  if (state.endNode)   state.endNode.state   = 'end';
+  animation.reset();
+  state.done = false;
+  state.lastPath = null;
+  state.animatingRoute = false;
+  ui.setButtonStates({ generated: true, running: false, done: false });
+}
