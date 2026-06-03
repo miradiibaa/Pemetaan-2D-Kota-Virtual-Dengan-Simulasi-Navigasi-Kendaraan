@@ -517,3 +517,128 @@
         return false;
     }
 }
+
+    // Menjamin graf connected dan setiap node punya minimal dua koneksi.
+    _fixConnectivity() {
+        const nodes  = this.graph.nodes;
+        let edgeId   = this.graph.edges.length;
+        const edgeSudahAda = new Set(
+        this.graph.edges.map(e => [e.nodeA.id, e.nodeB.id].sort((a,b)=>a-b).join('-'))
+        );
+
+        const getKomponen = () => {
+        const komp = new Map();
+        let kompId = 0;
+        for (const node of nodes) {
+            if (komp.has(node.id)) continue;
+            const antrian = [node];
+            komp.set(node.id, kompId);
+            while (antrian.length > 0) {
+            const cur = antrian.shift();
+            for (const { node: nb } of this.graph.getNeighborNodes(cur)) {
+                if (!komp.has(nb.id)) { komp.set(nb.id, kompId); antrian.push(nb); }
+            }
+            }
+            kompId++;
+        }
+        return komp;
+        };
+
+        for (let iterasi = 0; iterasi < nodes.length; iterasi++) {
+        const komp = getKomponen();
+        if (new Set(komp.values()).size === 1) break;
+
+        let bestA = null, bestB = null, bestD = Infinity;
+        for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i], b = nodes[j];
+            if (komp.get(a.id) === komp.get(b.id)) continue;
+            const key = [a.id, b.id].sort((x,y)=>x-y).join('-');
+            if (edgeSudahAda.has(key)) continue;
+            if (this._edgeCrossesExisting(a, b)) continue;
+            const d = a.distanceTo(b);
+            if (d < bestD) { bestD = d; bestA = a; bestB = b; }
+            }
+        }
+        if (!bestA) break;
+        const key = [bestA.id, bestB.id].sort((a,b)=>a-b).join('-');
+        if (!edgeSudahAda.has(key)) {
+            edgeSudahAda.add(key);
+            const edge = new Edge(edgeId++, bestA, bestB);
+            edge.roadKind = 'connector';
+            this.graph.tambahEdge(edge);
+        }
+        }
+
+        // Node degree rendah diberi koneksi tambahan tanpa membuat jalan silang.
+        const minDegree = 2;
+        const maxAttempts = nodes.length * 10;
+        let attempts = 0;
+        const nodeDegree = () => {
+        const deg = new Map();
+        for (const n of nodes) deg.set(n.id, 0);
+        for (const e of this.graph.edges) {
+            deg.set(e.nodeA.id, deg.get(e.nodeA.id) + 1);
+            deg.set(e.nodeB.id, deg.get(e.nodeB.id) + 1);
+        }
+        return deg;
+        };
+
+        let degMap = nodeDegree();
+        let nodesWithDeg1 = nodes.filter(n => degMap.get(n.id) < minDegree);
+        while (nodesWithDeg1.length > 0 && attempts < maxAttempts) {
+        attempts++;
+        const a = nodesWithDeg1.shift();
+        let kandidat = nodes
+            .filter(n => n.id !== a.id)
+            .map(n => ({ node: n, d: a.distanceTo(n) }))
+            .sort((x,y)=>x.d-y.d);
+
+        let connected = false;
+        for (const { node: b } of kandidat) {
+            const key = [a.id, b.id].sort((x,y)=>x-y).join('-');
+            if (edgeSudahAda.has(key)) continue;
+            if (this._edgeCrossesExisting(a, b)) continue;
+            edgeSudahAda.add(key);
+            const edge = new Edge(edgeId++, a, b);
+            edge.roadKind = 'connector';
+            this.graph.tambahEdge(edge);
+            connected = true;
+            break;
+        }
+
+        if (!connected) {
+            nodesWithDeg1.push(a);
+        }
+
+        degMap = nodeDegree();
+        nodesWithDeg1 = nodes.filter(n => degMap.get(n.id) < minDegree);
+        }
+
+        // Final pass tetap menolak koneksi yang membuat jalan saling menimpa.
+        degMap = nodeDegree();
+        nodesWithDeg1 = nodes.filter(n => degMap.get(n.id) < minDegree);
+        for (const a of nodesWithDeg1) {
+        const kandidat = nodes
+            .filter(n => n.id !== a.id)
+            .map(n => ({ node: n, d: a.distanceTo(n) }))
+            .sort((x,y)=>x.d-y.d);
+        for (const { node: b } of kandidat) {
+            const key = [a.id, b.id].sort((x,y)=>x-y).join('-');
+            if (edgeSudahAda.has(key)) continue;
+            if (this._edgeCrossesExisting(a, b)) continue;
+            edgeSudahAda.add(key);
+            const edge = new Edge(edgeId++, a, b);
+            edge.roadKind = 'connector';
+            this.graph.tambahEdge(edge);
+            break;
+        }
+        }
+
+        const finalDeg = nodeDegree();
+        const stillLow = nodes.filter(n => finalDeg.get(n.id) < minDegree);
+        if (stillLow.length > 0) {
+        console.warn('[MapGenerator] nodes with degree <', minDegree, ':', stillLow.map(n=>n.id));
+        console.warn('[MapGenerator] graph stats after fix:', this.graph.getStats());
+        }
+    }
