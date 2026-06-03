@@ -642,3 +642,84 @@
         console.warn('[MapGenerator] graph stats after fix:', this.graph.getStats());
         }
     }
+
+        _generateControlPoints() {
+        for (const edge of this.graph.edges) {
+        const mx = (edge.nodeA.x + edge.nodeB.x) / 2;
+        const my = (edge.nodeA.y + edge.nodeB.y) / 2;
+
+        const dx  = edge.nodeB.x - edge.nodeA.x;
+        const dy  = edge.nodeB.y - edge.nodeA.y;
+        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+
+        if (edge.roadKind === 'parkLoop') {
+            const loop = this.centerLoop ?? { x: this.ovalCX, y: this.ovalCY, r: len };
+            const outX = mx - loop.x;
+            const outY = my - loop.y;
+            const outLen = Math.sqrt(outX * outX + outY * outY) || 1;
+            const radius = loop.r || len;
+            edge.controlPoint = {
+            x: loop.x + (outX / outLen) * radius * 1.155,
+            y: loop.y + (outY / outLen) * radius * 1.155,
+            };
+            edge.weight = Math.round(edge.getLength());
+            continue;
+        }
+
+        if (edge.roadKind === 'medianRoad') {
+            edge.controlPoint = this._midPointControl(edge);
+            edge.weight = Math.round(edge.getLength());
+            continue;
+        }
+
+        if (edge.roadKind === 'centerIntersection') {
+            edge.controlPoint = this._midPointControl(edge);
+            edge.weight = Math.round(edge.getLength());
+            continue;
+        }
+
+        if (edge.roadKind === 'outerLoop') {
+            const outX = mx - this.ovalCX;
+            const outY = my - this.ovalCY;
+            const outLen = Math.sqrt(outX * outX + outY * outY) || 1;
+            edge.controlPoint = {
+            x: mx + (outX / outLen) * len * (0.18 + Math.random() * 0.07),
+            y: my + (outY / outLen) * len * (0.18 + Math.random() * 0.07),
+            };
+            edge.weight = Math.round(edge.getLength());
+            continue;
+        }
+
+        if (edge.roadKind === 'uTurnBulb') {
+            const side = this.uTurnSide === 'left' || this.uTurnSide === 'top' ? -1 : 1;
+            const vertical = this.uTurnSide === 'left' || this.uTurnSide === 'right';
+            edge.controlPoint = {
+            x: vertical ? mx + side * this.ovalRX * 0.13 : mx,
+            y: vertical ? my : my + side * this.ovalRY * 0.13,
+            };
+            edge.weight = Math.round(edge.getLength());
+            continue;
+        }
+
+        if (edge.roadKind === 'uTurnStem' || edge.roadKind === 'connector') {
+            edge.controlPoint = this._midPointControl(edge);
+            edge.weight = Math.round(edge.getLength());
+            continue;
+        }
+
+        if (edge.roadKind === 'diagonal') {
+            const perpX = -dy / len;
+            const perpY =  dx / len;
+            const side = edge.curveSide || (Math.random() < 0.5 ? -1 : 1);
+            edge.controlPoint = {
+            x: mx + perpX * len * (0.16 + Math.random() * 0.10) * side,
+            y: my + perpY * len * (0.16 + Math.random() * 0.10) * side,
+            };
+            edge.weight = Math.round(edge.getLength());
+            continue;
+        }
+
+        edge.controlPoint = this._midPointControl(edge);
+        edge.weight = Math.round(edge.getLength());
+        }
+    }
