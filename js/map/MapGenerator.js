@@ -848,3 +848,222 @@
         }
         }
     }
+
+    _generateTrees() {
+        const theme  = this.theme;
+        const jumlah = Math.floor(this.graph.nodes.length * theme.treeDensity * 5);
+        let placed = 0;
+
+        for (const edge of this.graph.edges) {
+            if (edge.roadKind !== 'parkLoop' && edge.roadKind !== 'medianRoad') continue;
+            for (const t of [0.18, 0.38, 0.62, 0.82]) {
+                const pt = edge.getPointAtT(t);
+                const side = t < 0.5 ? -1 : 1;
+                const radius = theme.treeRadius.min + Math.random() * (theme.treeRadius.max - theme.treeRadius.min);
+                const offset = this.theme.roadWidth / 2 + 18 + radius;
+                const x = pt.x + Math.cos(pt.angle + Math.PI / 2) * side * offset;
+                const y = pt.y + Math.sin(pt.angle + Math.PI / 2) * side * offset;
+                if (!this._canPlaceAsset(x, y, radius, 6)) continue;
+                const colorIdx = Math.floor(Math.random() * theme.treeColors.length);
+                this.decorations.trees.push({ x, y, radius, colorIdx, aligned: true });
+                this._reserveAsset(x, y, radius);
+                placed++;
+            }
+        }
+
+        for (let i = 0; i < jumlah * 4 && placed < jumlah; i++) {
+            const angle = Math.random() * 2 * Math.PI;
+            const r     = Math.sqrt(Math.random()) * 0.88;
+            const x     = this.ovalCX + r * this.ovalRX * Math.cos(angle);
+            const y     = this.ovalCY + r * this.ovalRY * Math.sin(angle);
+
+            const radius   = theme.treeRadius.min + Math.random() * (theme.treeRadius.max - theme.treeRadius.min);
+                if (!this._canPlaceAsset(x, y, radius, 10)) continue;
+
+            const colorIdx = Math.floor(Math.random() * theme.treeColors.length);
+            this.decorations.trees.push({ x, y, radius, colorIdx });
+            this._reserveAsset(x, y, radius);
+            placed++;
+        }
+    }
+
+    _generateTrafficLights() {
+        const busyNodes = this.graph.nodes
+        .filter(node => this.graph.getNeighbors(node.id).length >= 3)
+        .slice(0, 10);
+
+        for (const node of busyNodes) {
+            const vx = node.x - this.ovalCX;
+            const vy = node.y - this.ovalCY;
+            const len = Math.sqrt(vx * vx + vy * vy) || 1;
+            const offset = this.theme.roadWidth / 2 + this.theme.nodeRadius + 8;
+            const x = node.x + (vx / len) * offset;
+            const y = node.y + (vy / len) * offset;
+            this.decorations.trafficLights.push({
+                x, y, angle: 0,
+                active: node.id % 3,
+            });
+        }
+    } 
+
+    _generatePlants() {
+        const theme = this.theme;
+        const jumlah = this.graph.nodes.length * 2;
+        let placed = 0;
+
+        for (let i = 0; i < jumlah * 5 && placed < jumlah; i++) {
+            const angle = Math.random() * 2 * Math.PI;
+            const r = Math.sqrt(Math.random()) * 0.90;
+            const x = this.ovalCX + r * this.ovalRX * Math.cos(angle);
+            const y = this.ovalCY + r * this.ovalRY * Math.sin(angle);
+            const radius = 6 + Math.random() * 4;
+
+            if (!this._canPlaceAsset(x, y, radius, 7)) continue;
+
+            this.decorations.plants.push({
+                x, y, radius,
+                colorIdx: Math.floor(Math.random() * theme.plantColors.length),
+                petals: 3 + Math.floor(Math.random() * 4),
+            });
+            this._reserveAsset(x, y, radius + 2);
+            placed++;
+        }
+    }
+
+    _generateAnimals() {
+        const theme = this.theme;
+        const jumlah = 5 + Math.floor(Math.random() * 4);
+        let placed = 0;
+
+        for (let i = 0; i < jumlah * 10 && placed < jumlah; i++) {
+            const angle = Math.random() * 2 * Math.PI;
+            const r = Math.sqrt(Math.random()) * 0.82;
+            const x = this.ovalCX + r * this.ovalRX * Math.cos(angle);
+            const y = this.ovalCY + r * this.ovalRY * Math.sin(angle);
+            const radius = 9 + Math.random() * 4;
+
+            if (!this._canPlaceAsset(x, y, radius, 12)) continue;
+
+            this.decorations.animals.push({
+                x, y, radius,
+                angle: Math.random() * Math.PI * 2,
+                type: Math.random() < 0.5 ? 'cat' : 'dog',
+                colorIdx: Math.floor(Math.random() * theme.animalColors.length),
+            });
+            this._reserveAsset(x, y, radius + 3);
+            placed++;
+        }
+    }
+
+    _generatePonds() {
+        if (!this.theme.pond?.enabled) return;
+        const candidates = this._pondCandidates();
+        const targetCount = this.centerKind === 'loop' ? 2 : 1;
+
+        for (const candidate of candidates) {
+        if (this.decorations.ponds.length >= targetCount) break;
+
+        const pond = this._createPond(candidate);
+        const pondRadius = Math.max(pond.rx, pond.ry) + 8;
+        const clearance = Math.max(pond.rx, pond.ry) + 28;
+        if (!this._canPlaceAsset(pond.x, pond.y, pondRadius, 4, 10)) continue;
+
+        this.decorations.ponds.push(pond);
+        this._reserveAsset(pond.x, pond.y, clearance);
+        }
+    }
+
+    _pondCandidates() {
+        const centerNodes = this.nodeRows[1] ?? [];
+        const center = centerNodes.length > 0
+        ? {
+            x: centerNodes.reduce((sum, node) => sum + node.x, 0) / centerNodes.length,
+            y: centerNodes.reduce((sum, node) => sum + node.y, 0) / centerNodes.length,
+            }
+        : { x: this.ovalCX, y: this.ovalCY };
+
+        const toWorld = (nx, ny) => this._toOvalPoint(nx, ny);
+        const openPockets = [
+        [-0.48, -0.26], [-0.36, -0.40], [0.00, -0.44], [0.36, -0.40], [0.48, -0.26],
+        [-0.50,  0.24], [-0.34,  0.42], [0.00,  0.44], [0.34,  0.42], [0.50,  0.24],
+        [-0.22, -0.18], [0.22, -0.18], [-0.22, 0.18], [0.22, 0.18],
+        ]
+        .map(([nx, ny]) => {
+            const point = toWorld(nx * this.layoutMirror, ny);
+            const roadClearance = this._distanceToNearestRoad(point.x, point.y) - this.theme.roadWidth / 2 - 8;
+            const nodeClearance = this._distanceToNearestNode(point.x, point.y) - this.theme.nodeRadius - 8;
+            const score = Math.min(roadClearance, nodeClearance);
+            const rx = this._clamp(score - 16, 19, 30);
+            return {
+            ...point,
+            rx,
+            ry: this._clamp(rx * 0.68, 16, 22),
+            rot: 0,
+            scale: this._clamp(rx / 31, 0.72, 0.94),
+            score,
+            };
+        })
+        .filter(candidate => candidate.score > 34)
+        .sort((a, b) => b.score - a.score);
+
+        if (this.centerKind === 'loop') {
+        return [
+            { x: center.x, y: center.y, rx: 34, ry: 23, rot: 0, scale: 1 },
+            { ...toWorld(0.36 * this.layoutMirror, -0.34), rx: 28, ry: 20, rot: 0, scale: 0.82 },
+            { ...toWorld(-0.36 * this.layoutMirror, 0.34), rx: 28, ry: 20, rot: 0, scale: 0.82 },
+            ...openPockets,
+        ];
+        }
+
+        if (this.centerKind === 'median') {
+            return [
+                { ...toWorld(-0.34 * this.layoutMirror, -0.32), rx: 30, ry: 21, rot: 0, scale: 0.88 },
+                { ...toWorld(0.34 * this.layoutMirror, 0.32), rx: 30, ry: 21, rot: 0, scale: 0.88 },
+                { x: center.x, y: center.y - this.ovalRY * 0.28, rx: 26, ry: 19, rot: 0, scale: 0.78 },
+                ...openPockets,
+            ];
+        }
+
+        return [
+            { ...toWorld(-0.34 * this.layoutMirror, -0.30), rx: 29, ry: 21, rot: 0, scale: 0.84 },
+            { ...toWorld(0.34 * this.layoutMirror, 0.30), rx: 29, ry: 21, rot: 0, scale: 0.84 },
+            { ...toWorld(-0.36 * this.layoutMirror, 0.28), rx: 27, ry: 19, rot: 0, scale: 0.78 },
+            ...openPockets,
+        ];
+    }    
+
+    _createPond(candidate) {
+        const rx = candidate.rx + Math.random() * 4;
+        const ry = candidate.ry + Math.random() * 3;
+        return {
+        x: candidate.x,
+        y: candidate.y,
+        rx,
+        ry,
+        rot: candidate.rot ?? 0,
+        accessories: this._pondAccessories(rx, ry, candidate.scale ?? 1),
+        };
+    }
+
+    _pondAccessories(rx, ry, scale = 1) {
+            const bushes = [-150, -108, -54, 44, 96, 148].map((deg, index) => ({
+            type: 'bush',
+            angle: deg * Math.PI / 180,
+            distance: 1.00 + (index % 2) * 0.08,
+            size: (6.2 + (index % 3) * 1.2) * scale,
+        }));
+
+        const benches = [-25, 205].map((deg) => ({
+            type: 'bench',
+            angle: deg * Math.PI / 180,
+            distance: 1.16,
+            w: 18 * scale,
+            h: 7 * scale,
+        }));
+
+        return [...bushes, ...benches].map(item => ({
+            ...item,
+            x: Math.cos(item.angle) * rx * item.distance,
+            y: Math.sin(item.angle) * ry * item.distance,
+        }));
+    }
