@@ -272,3 +272,81 @@ function handleCanvasClick(event) {
   state.animatingRoute = false;
   ui.setButtonStates({ generated: true, running: false, done: false });
 }
+
+// Menjalankan Dijkstra step-by-step. Setelah path ditemukan, garis path
+function handleMulai() {
+  if (!state.generated || state.running) return;
+  if (!state.startNode || !state.endNode) return;
+
+  if (!randomizer.validasiKoneksi(state.graph, state.startNode, state.endNode)) {
+    ui.addStepLog('⚠ Tidak ada jalur antara start dan end!', 'done');
+    return;
+  }
+
+  animation.reset();
+  state.graph.reset();
+  state.startNode.state = 'start';
+  state.endNode.state   = 'end';
+  state.running         = true;
+  state.done            = false;
+  state.animatingRoute  = false;
+  state.returningZoom   = false;
+  state.lastPath        = null;
+  _resetPathReveal();
+  state.visitedCount    = 0;
+
+  ui.clearLog();
+  ui.setButtonStates({ generated: true, running: true, done: false });
+  ui.addStepLog(`Dijkstra mulai: ${state.startNode.label} → ${state.endNode.label}`, 'init');
+
+  state.dijkstraGen      = dijkstra.dijkstraGenerator(state.graph, state.startNode, state.endNode);
+  state.dijkstraInterval = setInterval(_stepDijkstra, CONFIG.dijkstra.stepDelay);
+}
+
+function _stepDijkstra() {
+  if (!state.dijkstraGen) return;
+  const result = state.dijkstraGen.next();
+  if (result.done || !result.value) { _stopDijkstra(); return; }
+
+  const step    = result.value;
+  const logType = step.type === 'consider'
+    ? (step.lebihPendek ? 'update' : 'skip') : step.type;
+  ui.addStepLog(step.message, logType);
+
+  if (step.visitedCount !== undefined) {
+    state.visitedCount = step.visitedCount;
+    ui.updateStats({
+      nodeCount: state.graph.nodes.length,
+      edgeCount: state.graph.edges.length,
+      dist: '...', visited: state.visitedCount,
+    });
+  }
+
+  if (step.type === 'done') {
+    _stopDijkstra();
+    state.done    = true;
+    state.running = false;
+    state.lastPath = step.path;
+    ui.updateRouteInfo(step.path);
+    ui.updateStats({
+      nodeCount: state.graph.nodes.length,
+      edgeCount: state.graph.edges.length,
+      dist:    step.path.found ? step.path.totalDistance : '∞',
+      visited: state.visitedCount,
+    });
+    if (step.path.found) {
+      _startPathReveal(step.path);
+    } else {
+      ui.setButtonStates({ generated: true, running: false, done: true });
+    }
+  }
+}
+
+function _stopDijkstra() {
+  if (state.dijkstraInterval) {
+    clearInterval(state.dijkstraInterval);
+    state.dijkstraInterval = null;
+  }
+  state.dijkstraGen = null;
+  state.running     = false;
+}
