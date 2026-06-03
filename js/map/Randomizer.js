@@ -71,4 +71,65 @@ export class Randomizer {
       };
     }
   }
+
+
+_rebuildRoadGrid(graph, rows) {
+    graph.edges = [];
+    graph._adjacency = new Map();
+    for (const node of graph.nodes) graph._adjacency.set(node.id, []);
+
+    const edgeSudahAda = new Set();
+    let edgeId = 0;
+
+    const tambah = (a, b) => {
+      const key = [a.id, b.id].sort((x, y) => x - y).join('-');
+      if (edgeSudahAda.has(key)) return false;
+      if (this._edgeCrossesExisting(a, b, graph)) return false;
+
+      edgeSudahAda.add(key);
+      graph.tambahEdge(new Edge(edgeId++, a, b));
+      return true;
+    };
+
+    const sortedRows = rows
+      .map(row => row.slice().sort((a, b) => a.x - b.x))
+      .filter(row => row.length > 0);
+
+    for (const row of sortedRows) {
+      for (let i = 0; i < row.length - 1; i++) {
+        tambah(row[i], row[i + 1]);
+      }
+    }
+
+    for (let r = 0; r < sortedRows.length - 1; r++) {
+      const atas = sortedRows[r];
+      const bawah = sortedRows[r + 1];
+      let bridgeCount = 0;
+      for (let i = 0; i < atas.length; i++) {
+        const baseTargetIndex = atas.length === 1
+          ? Math.round((bawah.length - 1) / 2)
+          : Math.round((i / (atas.length - 1)) * (bawah.length - 1));
+        const offset = Math.random() < 0.35 ? (Math.random() < 0.5 ? -1 : 1) : 0;
+        const targetIndex = this._clamp(baseTargetIndex + offset, 0, bawah.length - 1);
+        if (tambah(atas[i], bawah[targetIndex])) bridgeCount++;
+      }
+
+      if (bridgeCount === 0) {
+        const a = atas[Math.floor(atas.length / 2)];
+        const b = bawah[Math.floor(bawah.length / 2)];
+        tambah(a, b);
+      }
+
+      const extraConnectors = 1 + Math.floor(Math.random() * 2);
+      for (let k = 0; k < extraConnectors; k++) {
+        const a = atas[Math.floor(Math.random() * atas.length)];
+        const nearest = bawah
+          .map(b => ({ node: b, d: a.distanceTo(b) }))
+          .sort((x, y) => x.d - y.d)
+          .slice(0, 3);
+        const pick = nearest[Math.floor(Math.random() * nearest.length)];
+        if (pick) tambah(a, pick.node);
+      }
+    }
+  }
 }
