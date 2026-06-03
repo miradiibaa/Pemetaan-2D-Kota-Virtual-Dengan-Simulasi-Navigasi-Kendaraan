@@ -723,3 +723,128 @@
         edge.weight = Math.round(edge.getLength());
         }
     }
+
+    // Dekorasi ditempatkan memakai collision check agar tidak menimpa jalan/aset.
+    _generateDecorations() {
+        this._occupiedAssets = [];
+        this._generatePonds();
+        this._generateTrafficLights();
+        this._generateCommercialBlocks();
+        this._generateBuildings();
+        this._generateTrees();
+        this._generatePlants();
+        this._generateAnimals();
+        this._occupiedAssets = [];
+    }
+
+    _generateBuildings() {
+        const theme   = this.theme;
+        const density = theme.buildingDensity;
+        const roadW   = theme.roadWidth;
+        const perSisi = CONFIG.map.buildingsPerRoad;
+        const byType = (type) => theme.buildings.filter(b => b.type === type);
+        const pickStyle = (types, fallback = theme.buildings) => {
+        const pool = types.flatMap(type => byType(type));
+        return (pool.length > 0 ? pool : fallback)[Math.floor(Math.random() * (pool.length || fallback.length))];
+        };
+
+        for (const edge of this.graph.edges) {
+        if (edge.roadKind === 'parkLoop' || edge.roadKind === 'medianRoad' ||
+            edge.roadKind === 'centerIntersection' || edge.roadKind === 'uTurnBulb') continue;
+
+        for (const sisi of [-1, 1]) {
+            for (let s = 0; s < perSisi; s++) {
+            if (Math.random() > density) continue;
+            const t  = 0.14 + ((s + 0.5) / perSisi) * 0.72;
+            const pt = edge.getPointAtT(t);
+
+            const perpX = Math.cos(pt.angle + Math.PI / 2) * sisi;
+            const perpY = Math.sin(pt.angle + Math.PI / 2) * sisi;
+            const outward = ((pt.x - this.ovalCX) * perpX + (pt.y - this.ovalCY) * perpY) > 0;
+
+            let style;
+            if (edge.roadKind === 'outerLoop' && outward) {
+                style = pickStyle(['office', 'tower', 'apt']);
+            } else if (edge.roadKind === 'outerLoop') {
+                style = pickStyle(['residential', 'shop']);
+            } else {
+                style = pickStyle(['shop', 'residential', 'office']);
+            }
+            const w      = style.minW + Math.random() * (style.maxW - style.minW);
+            let h        = style.minH + Math.random() * (style.maxH - style.minH);
+            if (edge.roadKind === 'outerLoop' && outward && (style.type === 'office' || style.type === 'tower' || style.type === 'apt')) {
+                h *= 1.18;
+            }
+            if (style.type === 'residential') h *= 1.08;
+            const radius = Math.sqrt(w * w + h * h) / 2;
+            const frontSetback = roadW / 2 + theme.sidewalkW + 13;
+            const offset = frontSetback + h / 2;
+
+            const bx = pt.x + perpX * offset;
+            const by = pt.y + perpY * offset;
+
+            if (!this._canPlaceAsset(bx, by, radius * 0.60, 7, 9)) continue;
+
+            this.decorations.buildings.push({
+                x: bx, y: by, w, h, radius, style,
+                angle: 0,
+                type: style.type,
+                rowIndex: s,
+                rowCount: perSisi,
+                frontSide: 1,
+                roadAligned: true,
+            });
+            this._reserveAsset(bx, by, radius * 0.58);
+            }
+        }
+        }
+    }
+
+    _generateCommercialBlocks() {
+        const mallStyles = this.theme.buildings.filter(b => b.type === 'mall' || b.type === 'market' || b.type === 'supermarket');
+        if (mallStyles.length === 0) return;
+
+        const candidates = this.graph.edges.filter(edge => edge.roadKind === 'outerLoop');
+        const picked = candidates.slice().sort(() => Math.random() - 0.5);
+        let placed = 0;
+
+        for (const edge of picked) {
+        if (placed >= 3) break;
+        const style = mallStyles[placed % mallStyles.length];
+        let didPlace = false;
+
+        for (const t of [0.30, 0.50, 0.70]) {
+            if (didPlace) break;
+            const pt = edge.getPointAtT(t);
+            const sideA = Math.cos(pt.angle + Math.PI / 2);
+            const sideB = Math.sin(pt.angle + Math.PI / 2);
+            const outward = ((pt.x - this.ovalCX) * sideA + (pt.y - this.ovalCY) * sideB) > 0 ? 1 : -1;
+
+            for (const side of [-outward, outward]) {
+            const w = style.minW + Math.random() * (style.maxW - style.minW);
+            let h = style.minH + Math.random() * (style.maxH - style.minH);
+            h *= style.type === 'mall' ? 1.35 : 1.20;
+            const radius = Math.sqrt(w * w + h * h) / 2;
+            const frontSetback = this.theme.roadWidth / 2 + this.theme.sidewalkW + 18;
+            const offset = frontSetback + h / 2;
+            const x = pt.x + sideA * side * offset;
+            const y = pt.y + sideB * side * offset;
+
+            if (!this._canPlaceAsset(x, y, radius * 0.56, 8, 10)) continue;
+
+            this.decorations.buildings.push({
+                x, y, w, h, radius, style,
+                angle: 0,
+                type: style.type,
+                commercialBlock: true,
+                frontSide: 1,
+                roadAligned: true,
+            });
+            this._reserveAsset(x, y, radius * 0.56);
+            placed++;
+            didPlace = true;
+            break;
+            }
+        }
+        }
+    }
