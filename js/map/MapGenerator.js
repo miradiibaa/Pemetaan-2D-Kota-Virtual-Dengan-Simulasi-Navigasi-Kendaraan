@@ -1154,3 +1154,132 @@
         }
         return pairs;
     }
+
+    _sampleEdge(edge, steps = 18) {
+        const points = [];
+        for (let i = 0; i <= steps; i++) {
+            points.push(edge.getPointAtT(i / steps));
+        }
+        return points;
+    }
+
+    _polylinesIntersect(aPoints, bPoints) {
+        for (let i = 0; i < aPoints.length - 1; i++) {
+            const a1 = aPoints[i], a2 = aPoints[i + 1];
+            for (let j = 0; j < bPoints.length - 1; j++) {
+                const b1 = bPoints[j], b2 = bPoints[j + 1];
+                if (this._segmentsIntersect(a1.x, a1.y, a2.x, a2.y, b1.x, b1.y, b2.x, b2.y)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    _polylineDistance(aPoints, bPoints) {
+        let min = Infinity;
+        for (let i = 0; i < aPoints.length - 1; i++) {
+            const a1 = aPoints[i], a2 = aPoints[i + 1];
+            for (let j = 0; j < bPoints.length - 1; j++) {
+                const b1 = bPoints[j], b2 = bPoints[j + 1];
+                min = Math.min(min, this._segmentDistance(a1, a2, b1, b2));
+                if (min <= 0) return 0;
+            }
+        }
+        return min;
+    }
+
+    _segmentDistance(a1, a2, b1, b2) {
+        if (this._segmentsIntersect(a1.x, a1.y, a2.x, a2.y, b1.x, b1.y, b2.x, b2.y)) return 0;
+        return Math.min(
+            this._pointSegmentDistance(a1, b1, b2),
+            this._pointSegmentDistance(a2, b1, b2),
+            this._pointSegmentDistance(b1, a1, a2),
+            this._pointSegmentDistance(b2, a1, a2)
+        );
+    }
+
+    _pointSegmentDistance(point, a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return Math.sqrt((point.x - a.x) ** 2 + (point.y - a.y) ** 2);
+
+        const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lenSq));
+        const px = a.x + dx * t;
+        const py = a.y + dy * t;
+        return Math.sqrt((point.x - px) ** 2 + (point.y - py) ** 2);
+    }
+
+    _edgesShareNode(a, b) {
+        return a.nodeA.id === b.nodeA.id ||
+        a.nodeA.id === b.nodeB.id ||
+        a.nodeB.id === b.nodeA.id ||
+        a.nodeB.id === b.nodeB.id;
+    }
+
+    _straightenProblemRoads() {
+        const priority = {
+            diagonal: 5,
+            connector: 4,
+            uTurnStem: 3,
+            uTurnBulb: 2,
+            centerIntersection: 2,
+            medianRoad: 2,
+            parkLoop: 1,
+            outerLoop: 0,
+        };
+
+        for (let guard = 0; guard < 20; guard++) {
+            const pairs = this._getRoadCollisionPairs();
+            if (pairs.length === 0) return;
+
+            let removed = false;
+            for (const pair of pairs) {
+                const candidates = pair
+                .slice()
+                .sort((a, b) => (priority[b.roadKind] ?? 1) - (priority[a.roadKind] ?? 1));
+
+                for (const edge of candidates) {
+                if ((priority[edge.roadKind] ?? 0) <= 1) continue;
+                if (this._removeEdgeIfSafe(edge)) {
+                    removed = true;
+                    break;
+                }
+                }
+                if (removed) break;
+            }
+
+            if (!removed) {
+                for (const [a, b] of pairs) {
+                    a.controlPoint = this._midPointControl(a);
+                    b.controlPoint = this._midPointControl(b);
+                    a.weight = Math.round(a.getLength());
+                    b.weight = Math.round(b.getLength());
+                }
+                return;
+            }
+        }
+    }
+
+    _removeEdgeIfSafe(edgeToRemove) {
+        const nextEdges = this.graph.edges.filter(edge => edge.id !== edgeToRemove.id);
+        if (nextEdges.length < this.graph.nodes.length) return false;
+
+        const oldEdges = this.graph.edges;
+        const oldAdj = this.graph._adjacency;
+        this.graph.edges = nextEdges;
+        this.graph._adjacency = new Map(this.graph.nodes.map(node => [node.id, []]));
+        for (const edge of nextEdges) {
+            this.graph._adjacency.get(edge.nodeA.id).push(edge);
+            this.graph._adjacency.get(edge.nodeB.id).push(edge);
+        }
+
+        const connected = this.graph.isConnected();
+        const minDegreeOk = this.graph.nodes.every(node => this.graph.getNeighbors(node.id).length >= 2);
+        if (connected && minDegreeOk) return true;
+
+        this.graph.edges = oldEdges;
+        this.graph._adjacency = oldAdj;
+        return false;
+    }
