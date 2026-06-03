@@ -6,13 +6,11 @@
 
         <title>Road Pathfinding</title>
 
-        <!-- Favicon emoji (tampil di tab browser) -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>" />
         <link rel="stylesheet" href="css/styles.css" />
     </head>
 
     <body>
-        <!-- ── Loading screen ── -->
         <div id="loading">
             <div class="loading-icon">🗺️</div>
             <div class="loading-text">Road Pathfinding</div>
@@ -22,13 +20,12 @@
             <div class="loading-sub">Dijkstra Algorithm Visualizer</div>
         </div>
 
-        <!-- ── Mount point aplikasi ── -->
+        <!-- Mount point aplikasi -->
         <div id="app"></div>
         <script type="module" src="js/main.js"></script>
 
-        <!-- ── Sembunyikan loading screen setelah semua modul siap ── -->
+        <!-- Sembunyikan loading screen setelah semua modul siap -->
         <script type="module">
-            // 'load' event memastikan semua resource sudah dimuat
             window.addEventListener('load', () => {
             const loading = document.getElementById('loading');
             if (!loading) return;
@@ -37,7 +34,7 @@
             });
         </script>
 
-        <!-- ── Cegah context menu klik kanan di canvas ── -->
+        <!-- Cegah context menu klik kanan di canvas -->
         <script>
             document.addEventListener('contextmenu', e => {
             if (e.target.tagName === 'CANVAS') e.preventDefault();
