@@ -518,8 +518,66 @@
     }
 }
 
+    _buildMST(nodes, edgeSudahAda, startEdgeId); {
+        const allEdges = [];
+        for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            const d = nodes[i].distanceTo(nodes[j]);
+            if (d <= CONFIG.map.maxConnectDist * 1.2) {
+            allEdges.push({
+                a: nodes[i], b: nodes[j], d, id: `${i}-${j}`
+            });
+            }
+        }
+        }
+
+        allEdges.sort((x, y) => x.d - y.d);
+
+        const parent = new Map();
+        const rank = new Map();
+        for (const n of nodes) {
+        parent.set(n.id, n.id);
+        rank.set(n.id, 0);
+        }
+
+        const find = (x) => {
+        if (parent.get(x) !== x) {
+            parent.set(x, find(parent.get(x)));
+        }
+        return parent.get(x);
+        };
+
+        const union = (x, y) => {
+        const px = find(x), py = find(y);
+        if (px === py) return false;
+        if (rank.get(px) < rank.get(py)) {
+            parent.set(px, py);
+        } else if (rank.get(px) > rank.get(py)) {
+            parent.set(py, px);
+        } else {
+            parent.set(py, px);
+            rank.set(px, rank.get(px) + 1);
+        }
+        return true;
+        };
+
+        let edgeId = startEdgeId;
+        for (const edge of allEdges) {
+        if (!union(edge.a.id, edge.b.id)) continue;
+        if (this._edgeCrossesExisting(edge.a, edge.b)) continue;
+
+        const key = [edge.a.id, edge.b.id].sort((a,b)=>a-b).join('-');
+        if (edgeSudahAda.has(key)) continue;
+
+        edgeSudahAda.add(key);
+        const cleanEdge = new Edge(edgeId++, edge.a, edge.b);
+        cleanEdge.roadKind = 'connector';
+        this.graph.tambahEdge(cleanEdge);
+        }
+    }
+
     // Menjamin graf connected dan setiap node punya minimal dua koneksi.
-    _fixConnectivity() {
+    _fixConnectivity(); {
         const nodes  = this.graph.nodes;
         let edgeId   = this.graph.edges.length;
         const edgeSudahAda = new Set(
@@ -643,7 +701,7 @@
         }
     }
 
-        _generateControlPoints() {
+        _generateControlPoints(); {
         for (const edge of this.graph.edges) {
         const mx = (edge.nodeA.x + edge.nodeB.x) / 2;
         const my = (edge.nodeA.y + edge.nodeB.y) / 2;
@@ -725,7 +783,7 @@
     }
 
     // Dekorasi ditempatkan memakai collision check agar tidak menimpa jalan/aset.
-    _generateDecorations() {
+    _generateDecorations(); {
         this._occupiedAssets = [];
         this._generatePonds();
         this._generateTrafficLights();
@@ -737,7 +795,7 @@
         this._occupiedAssets = [];
     }
 
-    _generateBuildings() {
+    _generateBuildings(); {
         const theme   = this.theme;
         const density = theme.buildingDensity;
         const roadW   = theme.roadWidth;
@@ -800,7 +858,7 @@
         }
     }
 
-    _generateCommercialBlocks() {
+    _generateCommercialBlocks(); {
         const mallStyles = this.theme.buildings.filter(b => b.type === 'mall' || b.type === 'market' || b.type === 'supermarket');
         if (mallStyles.length === 0) return;
 
@@ -849,7 +907,7 @@
         }
     }
 
-    _generateTrees() {
+    _generateTrees(); {
         const theme  = this.theme;
         const jumlah = Math.floor(this.graph.nodes.length * theme.treeDensity * 5);
         let placed = 0;
@@ -887,7 +945,7 @@
         }
     }
 
-    _generateTrafficLights() {
+    _generateTrafficLights(); {
         const busyNodes = this.graph.nodes
         .filter(node => this.graph.getNeighbors(node.id).length >= 3)
         .slice(0, 10);
@@ -906,7 +964,7 @@
         }
     } 
 
-    _generatePlants() {
+    _generatePlants(); {
         const theme = this.theme;
         const jumlah = this.graph.nodes.length * 2;
         let placed = 0;
@@ -930,7 +988,7 @@
         }
     }
 
-    _generateAnimals() {
+    _generateAnimals(); {
         const theme = this.theme;
         const jumlah = 5 + Math.floor(Math.random() * 4);
         let placed = 0;
@@ -955,7 +1013,7 @@
         }
     }
 
-    _generatePonds() {
+    _generatePonds(); {
         if (!this.theme.pond?.enabled) return;
         const candidates = this._pondCandidates();
         const targetCount = this.centerKind === 'loop' ? 2 : 1;
@@ -973,7 +1031,7 @@
         }
     }
 
-    _pondCandidates() {
+    _pondCandidates(); {
         const centerNodes = this.nodeRows[1] ?? [];
         const center = centerNodes.length > 0
         ? {
@@ -1032,7 +1090,7 @@
         ];
     }    
 
-    _createPond(candidate) {
+    _createPond(candidate); {
         const rx = candidate.rx + Math.random() * 4;
         const ry = candidate.ry + Math.random() * 3;
         return {
@@ -1045,7 +1103,7 @@
         };
     }
 
-    _pondAccessories(rx, ry, scale = 1) {
+    _pondAccessories(rx, ry, scale = 1); {
             const bushes = [-150, -108, -54, 44, 96, 148].map((deg, index) => ({
             type: 'bush',
             angle: deg * Math.PI / 180,
@@ -1069,7 +1127,7 @@
     }
 
       // Utilitas geometri dan collision detection.
-    _edgeCrossesExisting(a, b) {
+    _edgeCrossesExisting(a, b); {
         for (const edge of this.graph.edges) {
         if (edge.nodeA.id === a.id || edge.nodeB.id === a.id) continue;
         if (edge.nodeA.id === b.id || edge.nodeB.id === b.id) continue;
@@ -1081,7 +1139,7 @@
         return false;
     }
 
-    _segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+    _segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy); {
         const eps  = 0.01;
         const d1x  = bx-ax, d1y = by-ay;
         const d2x  = dx-cx, d2y = dy-cy;
@@ -1092,11 +1150,11 @@
         return t > eps && t < 1-eps && u > eps && u < 1-eps;
     }
 
-    _hasRoadCollision() {
+    _hasRoadCollision(); {
         return this._getRoadCollisionPairs().length > 0;
     }
 
-    _isRoadNetworkClean() {
+    _isRoadNetworkClean(); {
         return this.graph.isConnected() &&
         !this._hasDanglingRoads() &&
         this._connectorAccessCount() >= 3 &&
@@ -1104,15 +1162,15 @@
         !this._hasRoadOverlap();
     }
 
-    _hasDanglingRoads() {
+    _hasDanglingRoads(); {
         return this.graph.nodes.some(node => this.graph.getNeighbors(node.id).length < 2);
     }
 
-    _connectorAccessCount() {
+    _connectorAccessCount(); {
         return this.graph.edges.filter(edge => edge.roadKind === 'connector').length;
     }
 
-    _hasRoadOverlap() {
+    _hasRoadOverlap(); {
         const samples = new Map(this.graph.edges.map(edge => [edge.id, this._sampleEdge(edge)]));
         const minClearance = this.theme.roadWidth * 0.86;
 
@@ -1129,7 +1187,7 @@
         return false;
     }
 
-    _layoutSignature() {
+    _layoutSignature(); {
         const edgeSig = this.graph.edges
         .map(edge => `${edge.roadKind}:${Math.min(edge.nodeA.id, edge.nodeB.id)}-${Math.max(edge.nodeA.id, edge.nodeB.id)}`)
         .sort()
@@ -1137,7 +1195,7 @@
         return `${this.roadProfile?.id ?? this.centerKind}:${this.uTurnSide}:${edgeSig}`;
     }
 
-    _getRoadCollisionPairs() {
+    _getRoadCollisionPairs(); {
         const pairs = [];
         const samples = new Map(this.graph.edges.map(edge => [edge.id, this._sampleEdge(edge)]));
 
@@ -1155,7 +1213,7 @@
         return pairs;
     }
 
-    _sampleEdge(edge, steps = 18) {
+    _sampleEdge(edge, steps = 18); {
         const points = [];
         for (let i = 0; i <= steps; i++) {
             points.push(edge.getPointAtT(i / steps));
@@ -1163,7 +1221,7 @@
         return points;
     }
 
-    _polylinesIntersect(aPoints, bPoints) {
+    _polylinesIntersect(aPoints, bPoints); {
         for (let i = 0; i < aPoints.length - 1; i++) {
             const a1 = aPoints[i], a2 = aPoints[i + 1];
             for (let j = 0; j < bPoints.length - 1; j++) {
@@ -1176,7 +1234,7 @@
         return false;
     }
 
-    _polylineDistance(aPoints, bPoints) {
+    _polylineDistance(aPoints, bPoints); {
         let min = Infinity;
         for (let i = 0; i < aPoints.length - 1; i++) {
             const a1 = aPoints[i], a2 = aPoints[i + 1];
@@ -1189,7 +1247,7 @@
         return min;
     }
 
-    _segmentDistance(a1, a2, b1, b2) {
+    _segmentDistance(a1, a2, b1, b2); {
         if (this._segmentsIntersect(a1.x, a1.y, a2.x, a2.y, b1.x, b1.y, b2.x, b2.y)) return 0;
         return Math.min(
             this._pointSegmentDistance(a1, b1, b2),
@@ -1199,7 +1257,7 @@
         );
     }
 
-    _pointSegmentDistance(point, a, b) {
+    _pointSegmentDistance(point, a, b); {
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const lenSq = dx * dx + dy * dy;
@@ -1211,14 +1269,14 @@
         return Math.sqrt((point.x - px) ** 2 + (point.y - py) ** 2);
     }
 
-    _edgesShareNode(a, b) {
+    _edgesShareNode(a, b); {
         return a.nodeA.id === b.nodeA.id ||
         a.nodeA.id === b.nodeB.id ||
         a.nodeB.id === b.nodeA.id ||
         a.nodeB.id === b.nodeB.id;
     }
 
-    _straightenProblemRoads() {
+    _straightenProblemRoads(); {
         const priority = {
             diagonal: 5,
             connector: 4,
@@ -1262,7 +1320,7 @@
         }
     }
 
-    _removeEdgeIfSafe(edgeToRemove) {
+    _removeEdgeIfSafe(edgeToRemove); {
         const nextEdges = this.graph.edges.filter(edge => edge.id !== edgeToRemove.id);
         if (nextEdges.length < this.graph.nodes.length) return false;
 
@@ -1284,14 +1342,14 @@
         return false;
     }
 
-    _midPointControl(edge) {
+    _midPointControl(edge); {
         return {
         x: (edge.nodeA.x + edge.nodeB.x) / 2,
         y: (edge.nodeA.y + edge.nodeB.y) / 2,
         };
     }
 
-    _isNearRoad(x, y, minDist) {
+    _isNearRoad(x, y, minDist); {
         for (const edge of this.graph.edges) {
             for (let t = 0; t <= 1; t += 0.05) {
                 const pt = edge.getPointAtT(t);
@@ -1302,7 +1360,7 @@
         return false;
     }
 
-    _distanceToNearestRoad(x, y) {
+    _distanceToNearestRoad(x, y); {
         let nearest = Infinity;
         for (const edge of this.graph.edges) {
             for (let t = 0; t <= 1; t += 0.04) {
@@ -1314,7 +1372,7 @@
         return nearest;
     }
 
-    _isNearBuilding(x, y, minDist) {
+    _isNearBuilding(x, y, minDist); {
         for (const b of this.decorations.buildings) {
             const dx = b.x - x, dy = b.y - y;
             if (Math.sqrt(dx*dx + dy*dy) < minDist + (b.radius ?? b.w/2)) return true;
@@ -1322,7 +1380,7 @@
         return false;
     }
 
-    _canPlaceAsset(x, y, radius, roadGap = 8, assetGap = 5) {
+    _canPlaceAsset(x, y, radius, roadGap = 8, assetGap = 5); {
         const nx = (x - this.ovalCX) / this.ovalRX;
         const ny = (y - this.ovalCY) / this.ovalRY;
         if (nx * nx + ny * ny > 0.88) return false;
@@ -1338,11 +1396,11 @@
         return true;
     }
 
-    _reserveAsset(x, y, radius) {
+    _reserveAsset(x, y, radius); {
         this._occupiedAssets.push({ x, y, r: radius });
     }
 
-    _isNearNode(x, y, minDist) {
+    _isNearNode(x, y, minDist); {
         return this.graph.nodes.some(node => {
         const dx = node.x - x;
         const dy = node.y - y;
@@ -1350,7 +1408,7 @@
         });
     }
 
-    _distanceToNearestNode(x, y) {
+    _distanceToNearestNode(x, y); {
         return this.graph.nodes.reduce((nearest, node) => {
         const dx = node.x - x;
         const dy = node.y - y;

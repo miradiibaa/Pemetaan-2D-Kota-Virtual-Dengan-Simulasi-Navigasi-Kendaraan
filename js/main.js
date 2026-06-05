@@ -402,3 +402,127 @@ function _resetPathReveal() {
   state.revealingPath = false;
   state.pathReveal = { active: false, progress: 0, segments: [] };
 }
+// Mengacak start/end tanpa mengubah bentuk peta.
+function handleAcakPosisi() {
+  if (!state.generated) return;
+  _stopDijkstra();
+  animation.reset();
+  state.graph.reset();
+  state.done    = false;
+  state.running = false;
+  state.animatingRoute = false;
+  state.returningZoom = false;
+  _resetPathReveal();
+
+  const { start, end } = randomizer.randomStartEnd(state.graph);
+  state.startNode = start;
+  state.endNode   = end;
+
+  ui.clearLog();
+  ui.addStepLog(
+    `Posisi mobil diacak → Start: ${state.startNode.label}, End: ${state.endNode.label}`,
+    'init'
+  );
+  ui.setButtonStates({ generated: true, running: false, done: false });
+  ui.updateStats({
+    nodeCount: state.graph.nodes.length,
+    edgeCount: state.graph.edges.length,
+    dist: '—', visited: '—',
+  });
+}
+
+function handlePauseAnim() {
+  if (!state.animatingRoute) return;
+
+  if (animation.isPaused) {
+    animation.resume();
+  } else {
+    animation.pause();
+  }
+
+  ui.setButtonStates({
+    generated: true,
+    running: false,
+    done: true,
+    animating: true,
+    paused: animation.isPaused,
+  });
+}
+
+function handleStopAnim() {
+  if (!state.animatingRoute && !animation.isRunning) return;
+
+  animation.stop();
+  renderer.resetZoom();
+  state.graph.reset();
+  if (state.startNode) state.startNode.state = 'start';
+  if (state.endNode)   state.endNode.state   = 'end';
+  state.animatingRoute = false;
+  state.returningZoom = false;
+  state.done = false;
+  state.lastPath = null;
+  _resetPathReveal();
+  ui.addStepLog('Animasi mobil dihentikan.', 'done');
+  ui.updateStats({
+    nodeCount: state.graph.nodes.length,
+    edgeCount: state.graph.edges.length,
+    dist: '—',
+    visited: '—',
+  });
+  ui.setButtonStates({ generated: true, running: false, done: false });
+}
+
+function handleUlangiAnim() {
+  if (!state.lastPath?.found) return;
+
+  _finishPathState(state.lastPath);
+  _startRouteAnimation('Animasi mobil diulang dari awal.');
+}
+
+function handleKembaliAnim() {
+  if (!state.animatingRoute || animation.isRunning) return;
+
+  state.animatingRoute = false;
+  state.returningZoom = false;
+  renderer.resetZoom();
+  ui.setButtonStates({ generated: true, running: false, done: true });
+}
+
+function _startRouteAnimation(logMessage = null) {
+  if (!state.lastPath?.found) return;
+  state.returningZoom = false;
+
+  animation.mulai(state.lastPath, () => {
+    ui.addStepLog('Mobil sampai di tujuan!', 'done');
+    state.returningZoom = true;
+    state.animatingRoute = true;
+    ui.setButtonStates({
+      generated: true,
+      running: false,
+      done: true,
+      animating: true,
+      animationDone: true,
+    });
+  });
+
+  renderer.focusWorldPoint(animation.x, animation.y, CONFIG.animation.followZoom, 1);
+  state.animatingRoute = true;
+  if (logMessage) ui.addStepLog(logMessage, 'init');
+  ui.setButtonStates({ generated: true, running: false, done: true, animating: true });
+}
+
+function _updateReturnZoom() {
+  if (!state.returningZoom) return;
+
+  const smoothness = CONFIG.animation.returnZoomSmoothness ?? 0.035;
+  renderer.zoom += (1 - renderer.zoom) * smoothness;
+  renderer.panX += (0 - renderer.panX) * smoothness;
+  renderer.panY += (0 - renderer.panY) * smoothness;
+
+  const zoomDone = Math.abs(renderer.zoom - 1) < 0.003;
+  const panDone = Math.abs(renderer.panX) < 0.8 && Math.abs(renderer.panY) < 0.8;
+  if (!zoomDone || !panDone) return;
+
+  renderer.resetZoom();
+  state.returningZoom = false;
+}
