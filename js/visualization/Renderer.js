@@ -195,6 +195,176 @@ export class Renderer {
         ctx.textAlign = 'center';
         ctx.fillText('Tekan "Acak Map" untuk menampilkan peta', canvas.width/2, canvas.height/2);
     }
+    _drawOuterBackground({ theme, oval }); {
+    const { ctx, canvas } = this;
+    const grad = ctx.createRadialGradient(oval.cx, oval.cy, oval.rx*0.9, oval.cx, oval.cy, Math.max(canvas.width, canvas.height));
+    grad.addColorStop(0,   theme.bgOuter);
+    grad.addColorStop(0.4, this._darken(theme.bgOuter, 20));
+    grad.addColorStop(1,   this._darken(theme.bgOuter, 40));
+    ctx.fillStyle = grad;
+    ctx.fillRect(-this.panX/this.zoom, -this.panY/this.zoom, canvas.width/this.zoom, canvas.height/this.zoom);
+
+    // riak air
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 5; i++) {
+        ctx.beginPath();
+        ctx.ellipse(oval.cx, oval.cy, oval.rx + i*18, oval.ry + i*18, 0, 0, Math.PI*2);
+        ctx.stroke();
+    }
+  }
+
+  _clipToOval({ oval }, drawFn); {
+        const { ctx } = this;
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(oval.cx, oval.cy, oval.rx, oval.ry, 0, 0, Math.PI*2);
+        ctx.clip();
+        drawFn();
+        ctx.restore();
+    }
+
+    _drawInnerBackground({ theme, oval }); {
+        const { ctx } = this;
+        const grad = ctx.createRadialGradient(
+        oval.cx - oval.rx*0.15, oval.cy - oval.ry*0.15, 0,
+        oval.cx, oval.cy, Math.max(oval.rx, oval.ry)
+        );
+        grad.addColorStop(0,   this._lighten(theme.bgInner, 15));
+        grad.addColorStop(0.6, theme.bgInner);
+        grad.addColorStop(1,   this._darken(theme.bgInner, 15));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(oval.cx, oval.cy, oval.rx, oval.ry, 0, 0, Math.PI*2);
+        ctx.fill();
+    }
+
+    _drawOvalBorder({ theme, oval }); {
+        const { ctx } = this;
+        ctx.shadowBlur  = 18;
+        ctx.shadowColor = 'rgba(0,0,0,0.4)';
+        ctx.strokeStyle = this._darken(theme.bgOuter, 10);
+        ctx.lineWidth   = 8;
+        ctx.beginPath();
+        ctx.ellipse(oval.cx, oval.cy, oval.rx, oval.ry, 0, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.strokeStyle = theme.ovalBorder;
+        ctx.lineWidth   = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.ellipse(oval.cx, oval.cy, oval.rx-2, oval.ry-2, 0, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // KOLAM / DANAU KOTA
+    _drawPonds({ theme, decorations }); {
+        if (!theme.pond?.enabled || !decorations.ponds) return;
+        const { ctx } = this;
+        const pond = theme.pond;
+
+        for (const p of decorations.ponds) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+
+        ctx.fillStyle = 'rgba(218,206,176,0.70)';
+        ctx.strokeStyle = 'rgba(130,120,92,0.35)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.rx + 11, p.ry + 9, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Bayangan memberi pemisah visual antara kolam dan tanah.
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(3, 3, p.rx, p.ry, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(p.rx, p.ry));
+        grad.addColorStop(0,   this._lighten(pond.fill, 20));
+        grad.addColorStop(0.6, pond.fill);
+        grad.addColorStop(1,   this._darken(pond.fill, 15));
+        ctx.fillStyle   = grad;
+        ctx.strokeStyle = pond.stroke;
+        ctx.lineWidth   = 2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = pond.shimmer;
+        ctx.beginPath();
+        ctx.ellipse(-p.rx*0.25, -p.ry*0.25, p.rx*0.35, p.ry*0.2, -0.5, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth   = 1;
+        for (let i = 1; i <= 2; i++) {
+            ctx.beginPath();
+            ctx.ellipse(0, 0, p.rx * (0.5 + i*0.2), p.ry * (0.5 + i*0.2), 0, 0, Math.PI*2);
+            ctx.stroke();
+        }
+
+        this._drawPondAccessories(p);
+        ctx.restore();
+        }
+    }
+
+    _drawPondAccessories(pond); {
+        const { ctx } = this;
+        for (const item of pond.accessories ?? []) {
+        ctx.save();
+        ctx.translate(item.x, item.y);
+
+        if (item.type === 'bench') {
+        ctx.rotate(item.angle + Math.PI / 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.beginPath();
+        ctx.ellipse(1.5, 3, item.w * 0.55, item.h * 0.45, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#8a5a36';
+        ctx.strokeStyle = '#5f3d27';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(-item.w / 2, -item.h / 2, item.w, item.h, 1.5);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#5f3d27';
+        ctx.fillRect(-item.w * 0.42, -item.h * 0.75, item.w * 0.10, item.h * 0.55);
+        ctx.fillRect(item.w * 0.32, -item.h * 0.75, item.w * 0.10, item.h * 0.55);
+        } else {
+        const s = item.size;
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.beginPath();
+        ctx.ellipse(1.5, 2, s * 0.80, s * 0.38, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#315f35';
+        ctx.strokeStyle = '#214525';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(-s * 0.25, 0, s * 0.48, s * 0.38, -0.2, 0, Math.PI * 2);
+        ctx.ellipse(s * 0.25, 0, s * 0.50, s * 0.40, 0.25, 0, Math.PI * 2);
+        ctx.ellipse(0, -s * 0.28, s * 0.42, s * 0.36, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#5f8a48';
+        ctx.beginPath();
+        ctx.ellipse(-s * 0.10, -s * 0.20, s * 0.25, s * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        }
+
+        ctx.restore();
+        }
+    }
+
     
     _drawTrafficLights({ decorations }); {
         if (!decorations.trafficLights) return;
