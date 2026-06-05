@@ -1,8 +1,3 @@
-// js/visualization/Animation.js
-// Mengurus mobil yang bergerak mengikuti jalur terpendek.
-// Posisi mobil dihitung dari parameter t pada edge, sedangkan rotasi roda
-// dihitung dari jarak tempuh antar-frame.
-
 import { CONFIG } from '../config.js';
 
 export class Animation {

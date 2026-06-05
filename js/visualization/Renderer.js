@@ -128,9 +128,9 @@ export class Renderer {
         y: (sy - this.panY) / this.zoom,
         };
     }
-    }
+    
     // RENDER UTAMA
-    render(state); {
+    render(state) {
         const { ctx, canvas } = this;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -166,7 +166,7 @@ export class Renderer {
         this._drawZoomHUD();
     }
 
-    _drawZoomHUD(); {
+    _drawZoomHUD() {
         const { ctx } = this;
         const pct = Math.round(this.zoom * 100);
         ctx.save();
@@ -180,13 +180,13 @@ export class Renderer {
         ctx.restore();
     }
 
-    _lerp(from, to, amount); {
+    _lerp(from, to, amount) {
         const t = Math.min(1, Math.max(0, amount));
         return from + (to - from) * t;
     }
 
     // BACKGROUND & OVAL
-    _drawEmpty(theme); {
+    _drawEmpty(theme) {
         const { ctx, canvas } = this;
         ctx.fillStyle = theme ? theme.bgOuter : '#1A3A6A';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -195,7 +195,7 @@ export class Renderer {
         ctx.textAlign = 'center';
         ctx.fillText('Tekan "Acak Map" untuk menampilkan peta', canvas.width/2, canvas.height/2);
     }
-    _drawOuterBackground({ theme, oval }); {
+    _drawOuterBackground({ theme, oval }) {
     const { ctx, canvas } = this;
     const grad = ctx.createRadialGradient(oval.cx, oval.cy, oval.rx*0.9, oval.cx, oval.cy, Math.max(canvas.width, canvas.height));
     grad.addColorStop(0,   theme.bgOuter);
@@ -214,7 +214,7 @@ export class Renderer {
     }
   }
 
-  _clipToOval({ oval }, drawFn); {
+  _clipToOval({ oval }, drawFn) {
         const { ctx } = this;
         ctx.save();
         ctx.beginPath();
@@ -224,7 +224,7 @@ export class Renderer {
         ctx.restore();
     }
 
-    _drawInnerBackground({ theme, oval }); {
+    _drawInnerBackground({ theme, oval }) {
         const { ctx } = this;
         const grad = ctx.createRadialGradient(
         oval.cx - oval.rx*0.15, oval.cy - oval.ry*0.15, 0,
@@ -239,7 +239,7 @@ export class Renderer {
         ctx.fill();
     }
 
-    _drawOvalBorder({ theme, oval }); {
+    _drawOvalBorder({ theme, oval }) {
         const { ctx } = this;
         ctx.shadowBlur  = 18;
         ctx.shadowColor = 'rgba(0,0,0,0.4)';
@@ -260,7 +260,7 @@ export class Renderer {
     }
 
     // KOLAM / DANAU KOTA
-    _drawPonds({ theme, decorations }); {
+    _drawPonds({ theme, decorations }) {
         if (!theme.pond?.enabled || !decorations.ponds) return;
         const { ctx } = this;
         const pond = theme.pond;
@@ -314,7 +314,7 @@ export class Renderer {
         }
     }
 
-    _drawPondAccessories(pond); {
+    _drawPondAccessories(pond) {
         const { ctx } = this;
         for (const item of pond.accessories ?? []) {
         ctx.save();
@@ -366,7 +366,7 @@ export class Renderer {
     }
 
     
-    _drawTrafficLights({ decorations }); {
+    _drawTrafficLights({ decorations }) {
         if (!decorations.trafficLights) return;
         const { ctx } = this;
 
@@ -417,7 +417,7 @@ export class Renderer {
         }
     }
     // Jalan digambar berlapis: border, trotoar, aspal, marka, lalu highlight path.
-    _drawEdges({ graph, theme, pathReveal = null }); {
+    _drawEdges({ graph, theme, pathReveal = null }) {
         const { ctx } = this;
         const capR = theme.roadWidth / 2 + theme.sidewalkW + 1;
 
@@ -523,7 +523,7 @@ export class Renderer {
         }
     }
 
-    _drawPathReveal(pathReveal, theme); {
+    _drawPathReveal(pathReveal, theme) {
         const { ctx } = this;
         const segments = pathReveal.segments ?? [];
         if (segments.length === 0) return;
@@ -574,7 +574,7 @@ export class Renderer {
         }
     }
     // Label bobot edge
-    _drawEdgeWeights({ graph, theme }); {
+    _drawEdgeWeights({ graph, theme }) {
         const { ctx } = this;
         for (const edge of graph.edges) {
         const mid = edge.getMidPoint();
@@ -595,7 +595,7 @@ export class Renderer {
     }
 
     // Node persimpangan
-    _drawNodes({ graph, theme, startNode, endNode }); {
+    _drawNodes({ graph, theme, startNode, endNode }) {
         const { ctx } = this;
 
         for (const node of graph.nodes) {
@@ -643,7 +643,7 @@ export class Renderer {
         }
     }
 
-    _drawStartIcon(x, y, r); {
+    _drawStartIcon(x, y, r) {
         const { ctx } = this;
         const sz = r * 2.2;
 
@@ -666,7 +666,7 @@ export class Renderer {
         ctx.textBaseline = 'alphabetic';
     }
 
-    _drawEndIcon(x, y, r); {
+    _drawEndIcon(x, y, r) {
         const { ctx } = this;
         const sz = r * 2.2;
 
@@ -690,7 +690,7 @@ export class Renderer {
 
     
     // Label node
-    _drawNodeLabels({ graph, theme }); {
+    _drawNodeLabels({ graph, theme }) {
         const { ctx } = this;
         const r = theme.nodeRadius;
         ctx.font         = `bold ${r + 2}px sans-serif`;
@@ -713,7 +713,7 @@ export class Renderer {
     }
 
     // WARNA UTILS
-    _darken(hex, amount = 20); {
+    _darken(hex, amount = 20) {
         try {
         const num = parseInt(hex.replace('#',''), 16);
         const r   = Math.max(0, (num >> 16) - amount);
@@ -722,7 +722,7 @@ export class Renderer {
         return `rgb(${r},${g},${b})`;
         } catch { return '#333'; }
     }
-    _lighten(hex, amount = 20); {
+    _lighten(hex, amount = 20) {
         try {
         const num = parseInt(hex.replace('#',''), 16);
         const r   = Math.min(255, (num >> 16) + amount);
@@ -733,7 +733,7 @@ export class Renderer {
     }
 
     // Pohon taman kota, dibuat tidak berbentuk bulatan polos.
-    _drawTrees({ decorations, theme }); {
+    _drawTrees({ decorations, theme }) {
         if (!decorations.trees) return;
         const { ctx } = this;
         for (const tree of decorations.trees) {
@@ -784,7 +784,7 @@ export class Renderer {
     }
 
     // Tanaman kecil
-    _drawPlants({ decorations, theme }); {
+    _drawPlants({ decorations, theme }) {
         if (!decorations.plants) return;
         const { ctx } = this;
 
@@ -823,7 +823,7 @@ export class Renderer {
     }
 
     // Bangunan dengan variasi bentuk berdasarkan tipe.
-    _drawBuildings({ decorations, theme }); {
+    _drawBuildings({ decorations, theme }) {
         if (!decorations.buildings) return;
         const { ctx } = this;
         for (const b of decorations.buildings) {
@@ -1042,7 +1042,7 @@ export class Renderer {
         }
     }
 
-    _drawTrafficLights({ decorations }); {
+    _drawTrafficLights({ decorations }) {
         if (!decorations.trafficLights) return;
         const { ctx } = this;
 
@@ -1094,7 +1094,7 @@ export class Renderer {
     }
 
     // Hewan kecil sebagai dekorasi vektor.
-    _drawAnimals({ decorations, theme }); {
+    _drawAnimals({ decorations, theme }) {
         if (!decorations.animals) return;
         const { ctx } = this;
 
@@ -1157,3 +1157,4 @@ export class Renderer {
         ctx.restore();
         }
     }
+  }
