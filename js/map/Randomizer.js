@@ -72,6 +72,115 @@ export class Randomizer {
     }
   }
 
+  _placeNodesAsUrbanGrid(graph, ovalCX, ovalCY, ovalRX, ovalRY) {
+    const { minConnectDist } = CONFIG.map;
+    const nodes = graph.nodes.slice().sort((a, b) => a.id - b.id);
+    const rowsCount = this._randomRowCount(nodes.length);
+    const rowCounts = this._distributeNodes(nodes.length, rowsCount);
+    const rowRange = 1.36 + Math.random() * 0.12;
+    const rowSkew = (Math.random() - 0.5) * 0.16;
+    const angle = (Math.random() - 0.5) * Math.PI * 0.32;
+    const rows = [];
+    let index = 0;
+
+    for (let row = 0; row < rowsCount; row++) {
+      const cols = rowCounts[row];
+      const rowNodes = [];
+
+      const baseNy = rowsCount === 1 ? 0 : -rowRange / 2 + (row / (rowsCount - 1)) * rowRange;
+      const ny = this._clamp(baseNy + (Math.random() - 0.5) * 0.035, -0.78, 0.78);
+      const spanNormX = Math.sqrt(Math.max(0, 1 - ny * ny)) * (0.76 + Math.random() * 0.10);
+      const rowSpacingY = rowsCount > 1 ? (ovalRY * rowRange) / (rowsCount - 1) : minConnectDist;
+      const colSpacingX = cols > 1 ? (ovalRX * spanNormX * 2) / (cols - 1) : minConnectDist;
+      const rowShift = (Math.random() - 0.5) * spanNormX * 0.12;
+
+      for (let col = 0; col < cols && index < nodes.length; col++) {
+        const node = nodes[index++];
+        const baseNx = cols === 1 ? 0 : -spanNormX + (col / (cols - 1)) * spanNormX * 2;
+        const nxLimit = Math.sqrt(Math.max(0, 1 - ny * ny)) * 0.88;
+        const nx = this._clamp(baseNx + rowShift + ny * rowSkew, -nxLimit, nxLimit);
+        const jitterX = (Math.random() - 0.5) * Math.min(colSpacingX * 0.10, minConnectDist * 0.12);
+        const jitterY = (Math.random() - 0.5) * Math.min(rowSpacingY * 0.10, minConnectDist * 0.12);
+        let { x, y } = this._toOvalPoint(nx, ny, angle, ovalCX, ovalCY, ovalRX, ovalRY);
+        x += jitterX;
+        y += jitterY;
+
+        if (!this._isFarFromPlaced(rowNodes, rows, x, y, minConnectDist * 0.9)) {
+          const pt = this._toOvalPoint(nx, ny, angle, ovalCX, ovalCY, ovalRX, ovalRY);
+          x = pt.x;
+          y = pt.y;
+        }
+
+        node.x = x;
+        node.y = y;
+        rowNodes.push(node);
+      }
+
+      rows.push(rowNodes);
+    }
+
+    return rows;
+  }
+
+  _randomRowCount(nodeCount) {
+    if (nodeCount <= 24) return 4;
+    return Math.max(4, Math.round(Math.sqrt(nodeCount * 0.8)));
+  }
+
+  _distributeNodes(nodeCount, rows) {
+    const counts = Array.from({ length: rows }, () => 3);
+    let remaining = nodeCount - rows * 3;
+    let row = Math.floor(Math.random() * rows);
+
+    while (remaining > 0) {
+      const maxForRow = row === 0 || row === rows - 1
+        ? Math.ceil(nodeCount / rows) + 1
+        : Math.ceil(nodeCount / rows) + 2;
+      if (counts[row] < maxForRow) {
+        counts[row]++;
+        remaining--;
+      }
+      row = (row + 1 + Math.floor(Math.random() * Math.max(1, rows - 1))) % rows;
+    }
+
+    return counts;
+  }
+
+  _toOvalPoint(nx, ny, angle, ovalCX, ovalCY, ovalRX, ovalRY) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const rx = nx * cos - ny * sin;
+    const ry = nx * sin + ny * cos;
+    return {
+      x: ovalCX + rx * ovalRX,
+      y: ovalCY + ry * ovalRY,
+    };
+  }
+
+  _clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  _isFarFromPlaced(currentRow, rows, x, y, minGap) {
+    const placed = rows.flat().concat(currentRow);
+    return !placed.some(node => {
+      const dx = node.x - x;
+      const dy = node.y - y;
+      return Math.sqrt(dx * dx + dy * dy) < minGap;
+    });
+  }
+
+  _minNodeDistance(nodes) {
+    let min = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dy = nodes[i].y - nodes[j].y;
+        min = Math.min(min, Math.sqrt(dx * dx + dy * dy));
+      }
+    }
+    return min;
+  }
 
 _rebuildRoadGrid(graph, rows) {
     graph.edges = [];
@@ -134,7 +243,7 @@ _rebuildRoadGrid(graph, rows) {
   }
 
 
- _hapusEdgeSilang(graph) {
+  _hapusEdgeSilang(graph) {
     const edgesToKeep = [];
 
     for (const edge of graph.edges) {
@@ -263,8 +372,7 @@ _rebuildRoadGrid(graph, rows) {
     }
   }
 
-
- _fixConnectivity(graph) {
+  _fixConnectivity(graph) {
     const { minNeighbors } = CONFIG.map;
     const nodes = graph.nodes;
     let edgeId  = graph.edges.length > 0
@@ -370,5 +478,43 @@ _rebuildRoadGrid(graph, rows) {
     }
 
     return false;
+  }
+
+  getRandomNodeExcluding(graph, kecuali = []) {
+    const kecualiIds = new Set(kecuali.map(n => n.id));
+    const kandidat   = graph.nodes.filter(n => !kecualiIds.has(n.id));
+    if (kandidat.length === 0) return graph.nodes[0];
+    return kandidat[Math.floor(Math.random() * kandidat.length)];
+  }
+
+  // Deteksi persilangan segmen jalan.
+
+  _edgeCrossesExisting(a, b, graph) {
+    for (const edge of graph.edges) {
+      if (edge.nodeA.id === a.id || edge.nodeB.id === a.id) continue;
+      if (edge.nodeA.id === b.id || edge.nodeB.id === b.id) continue;
+
+      if (this._segmentsIntersect(
+        a.x, a.y, b.x, b.y,
+        edge.nodeA.x, edge.nodeA.y,
+        edge.nodeB.x, edge.nodeB.y
+      )) return true;
+    }
+    return false;
+  }
+
+  _segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+    const eps = 0.01;
+
+    const d1x = bx - ax, d1y = by - ay;
+    const d2x = dx - cx, d2y = dy - cy;
+
+    const cross = d1x * d2y - d1y * d2x;
+    if (Math.abs(cross) < 1e-10) return false;
+
+    const t = ((cx - ax) * d2y - (cy - ay) * d2x) / cross;
+    const u = ((cx - ax) * d1y - (cy - ay) * d1x) / cross;
+
+    return t > eps && t < 1 - eps && u > eps && u < 1 - eps;
   }
 }
